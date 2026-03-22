@@ -1,0 +1,239 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ===============================================================
+    // Assumed Data Model
+    // ===============================================================
+    //
+    // Collection: users
+    // Document ID: {userId} (matches request.auth.uid)
+    // Fields:
+    //   - uid: string (required) - User's unique ID
+    //   - displayName: string (optional) - User's name
+    //   - email: string (required) - User's email
+    //   - photoURL: string (optional) - Profile picture URL
+    //   - phone: string (optional) - Phone number
+    //   - birthDate: string (optional) - Date of birth
+    //   - cpf: string (optional) - CPF
+    //   - gender: string (optional) - Gender
+    //   - isRegistered: bool (optional) - Registration status
+    //   - role: string (required, enum: ['patient', 'admin']) - User role
+    //   - createdAt: timestamp (optional) - Creation time
+    //
+    // Collection: logs
+    // Document ID: auto-generated
+    // Fields:
+    //   - uid: string (required) - Owner's user ID
+    //   - painLevel: number (required, 0-20) - Pain intensity (count of points)
+    //   - painPoints: list (optional) - List of painful areas
+    //   - fatigueLevel: number (optional, 0-10) - Fatigue intensity
+    //   - sleepQuality: number (optional, 0-10) - Sleep quality
+    //   - notes: string (optional, max 500 chars) - Patient notes
+    //   - timestamp: timestamp (required) - Log entry time
+    //
+    // Collection: medications
+    // Document ID: auto-generated
+    // Fields:
+    //   - uid: string (required) - Owner's user ID
+    //   - name: string (required) - Medication name
+    //   - dosage: string (optional) - Medication dosage
+    //   - frequency: string (optional) - Medication frequency
+    //   - timestamp: timestamp (required) - Entry time
+    //
+    // Collection: consultations
+    // Document ID: auto-generated
+    // Fields:
+    //   - uid: string (required) - Owner's user ID
+    //   - specialty: string (required) - Medical specialty
+    //   - doctorName: string (optional) - Professional's name
+    //   - date: string (required, YYYY-MM-DD) - Date of consultation
+    //   - notes: string (optional) - Notes
+    //   - timestamp: timestamp (required) - Entry time
+    //
+    // Collection: assessments
+    // Document ID: auto-generated
+    // Fields:
+    //   - uid: string (required) - User ID
+    //   - toolId: string (required) - Tool identifier
+    //   - score: number (required) - Calculated score
+    //   - timestamp: timestamp (required) - Entry time
+    //
+    // Collection: prescriptions
+    // Document ID: auto-generated
+    // Fields:
+    //   - uid: string (required) - Owner's user ID
+    //   - renewed: bool (required) - Whether the renewal was performed
+    //   - date: string (required, YYYY-MM-DD) - Date of renewal
+    //   - timestamp: timestamp (required) - Entry time
+    //
+    // Collection: exams
+    // Document ID: auto-generated
+    // Fields:
+    //   - uid: string (required) - Owner's user ID
+    //   - date: string (required, YYYY-MM-DD) - Date of exam
+    //   - performed: bool (required) - Whether the exam was performed
+    //   - result: string (optional) - Notes or results
+    //   - timestamp: timestamp (required) - Entry time
+    //
+    // ===============================================================
+
+    // ===============================================================
+    // Helper Functions
+    // ===============================================================
+
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+
+    function isDocOwner() {
+      return isAuthenticated() && request.auth.uid == resource.data.uid;
+    }
+
+    function isAdmin() {
+      return isAuthenticated() &&
+        (get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin' ||
+         (request.auth.token.email == "haroldoplantao@gmail.com" && request.auth.token.email_verified == true));
+    }
+
+    function isValidEmail(email) {
+      return email is string && email.matches("^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}$");
+    }
+
+    function hasOnlyAllowedFields(fields) {
+      return request.resource.data.keys().hasOnly(fields);
+    }
+
+    // ===============================================================
+    // Domain Validators
+    // ===============================================================
+
+    function isValidUser(data) {
+      return hasOnlyAllowedFields(['uid', 'displayName', 'email', 'photoURL', 'role', 'createdAt', 'phone', 'birthDate', 'cpf', 'gender', 'isRegistered']) &&
+             data.uid is string && data.uid == request.auth.uid &&
+             data.email is string && isValidEmail(data.email) &&
+             data.role in ['patient', 'admin'] &&
+             (data.role == 'patient' || isAdmin()) &&
+             (!('phone' in data) || data.phone is string) &&
+             (!('birthDate' in data) || data.birthDate is string) &&
+             (!('cpf' in data) || data.cpf is string) &&
+             (!('gender' in data) || data.gender in ['Masculino', 'Feminino', 'Outro']) &&
+             (!('isRegistered' in data) || data.isRegistered is bool);
+    }
+
+    function isValidLog(data) {
+      return hasOnlyAllowedFields(['uid', 'painLevel', 'painPoints', 'fatigueLevel', 'sleepQuality', 'notes', 'timestamp']) &&
+             data.uid is string && data.uid == request.auth.uid &&
+             data.painLevel is number && data.painLevel >= 0 && data.painLevel <= 20 &&
+             (!('painPoints' in data) || (data.painPoints is list && data.painPoints.size() <= 20)) &&
+             (!('fatigueLevel' in data) || (data.fatigueLevel is number && data.fatigueLevel >= 0 && data.fatigueLevel <= 10)) &&
+             (!('sleepQuality' in data) || (data.sleepQuality is number && data.sleepQuality >= 0 && data.sleepQuality <= 10)) &&
+             (!('notes' in data) || (data.notes is string && data.notes.size() <= 500)) &&
+             data.timestamp is timestamp;
+    }
+
+    function isValidMedication(data) {
+      return hasOnlyAllowedFields(['uid', 'name', 'dosage', 'frequency', 'timestamp']) &&
+             data.uid is string && data.uid == request.auth.uid &&
+             data.name is string && data.name.size() > 0 && data.name.size() <= 100 &&
+             (!('dosage' in data) || (data.dosage is string && data.dosage.size() <= 50)) &&
+             (!('frequency' in data) || (data.frequency is string && data.frequency.size() <= 100)) &&
+             data.timestamp is timestamp;
+    }
+
+    function isValidConsultation(data) {
+      return hasOnlyAllowedFields(['uid', 'specialty', 'doctorName', 'date', 'notes', 'timestamp']) &&
+             data.uid is string && data.uid == request.auth.uid &&
+             data.specialty is string && data.specialty.size() > 0 && data.specialty.size() <= 100 &&
+             (!('doctorName' in data) || (data.doctorName is string && data.doctorName.size() <= 100)) &&
+             data.date is string && data.date.matches("^\\d{4}-\\d{2}-\\d{2}$") &&
+             (!('notes' in data) || (data.notes is string && data.notes.size() <= 1000)) &&
+             data.timestamp is timestamp;
+    }
+
+    function isValidAssessment(data) {
+      return hasOnlyAllowedFields(['uid', 'toolId', 'toolName', 'score', 'answers', 'interpretation', 'timestamp']) &&
+             data.uid is string && data.uid == request.auth.uid &&
+             data.toolId is string && data.toolId.size() > 0 &&
+             data.score is number &&
+             data.timestamp is timestamp;
+    }
+
+    function isValidPrescription(data) {
+      return hasOnlyAllowedFields(['uid', 'renewed', 'date', 'timestamp']) &&
+             data.uid is string && data.uid == request.auth.uid &&
+             data.renewed is bool &&
+             data.date is string && data.date.matches("^\\d{4}-\\d{2}-\\d{2}$") &&
+             data.timestamp is timestamp;
+    }
+
+    function isValidExam(data) {
+      return hasOnlyAllowedFields(['uid', 'date', 'performed', 'result', 'timestamp']) &&
+             data.uid is string && data.uid == request.auth.uid &&
+             data.date is string && data.date.matches("^\\d{4}-\\d{2}-\\d{2}$") &&
+             data.performed is bool &&
+             (!('result' in data) || (data.result is string && data.result.size() <= 1000)) &&
+             data.timestamp is timestamp;
+    }
+
+    // ===============================================================
+    // Match Rules
+    // ===============================================================
+
+    match /users/{userId} {
+      allow read: if isOwner(userId) || isAdmin();
+      allow create: if isAuthenticated() && isValidUser(request.resource.data) && (request.resource.data.role == 'patient' || isAdmin());
+      allow update: if isAuthenticated() && isValidUser(request.resource.data) && (isOwner(userId) && request.resource.data.role == resource.data.role || isAdmin());
+    }
+
+    match /logs/{logId} {
+      allow read: if isDocOwner() || isAdmin();
+      allow create: if isAuthenticated() && isValidLog(request.resource.data);
+      allow update: if isAuthenticated() && isValidLog(request.resource.data) && isDocOwner();
+      allow delete: if isAuthenticated() && isDocOwner();
+    }
+
+    match /assessments/{assessmentId} {
+      allow read: if isDocOwner() || isAdmin();
+      allow create: if isAuthenticated() && isValidAssessment(request.resource.data);
+      allow delete: if isAuthenticated() && isDocOwner();
+    }
+
+    match /medications/{medicationId} {
+      allow read: if isDocOwner() || isAdmin();
+      allow create: if isAuthenticated() && isValidMedication(request.resource.data);
+      allow update: if isAuthenticated() && isValidMedication(request.resource.data) && isDocOwner();
+      allow delete: if isAuthenticated() && isDocOwner();
+    }
+
+    match /consultations/{consultationId} {
+      allow read: if isDocOwner() || isAdmin();
+      allow create: if isAuthenticated() && isValidConsultation(request.resource.data);
+      allow update: if isAuthenticated() && isValidConsultation(request.resource.data) && isDocOwner();
+      allow delete: if isAuthenticated() && isDocOwner();
+    }
+
+    match /prescriptions/{prescriptionId} {
+      allow read: if isDocOwner() || isAdmin();
+      allow create: if isAuthenticated() && isValidPrescription(request.resource.data);
+      allow update: if isAuthenticated() && isValidPrescription(request.resource.data) && isDocOwner();
+      allow delete: if isAuthenticated() && isDocOwner();
+    }
+
+    match /exams/{examId} {
+      allow read: if isDocOwner() || isAdmin();
+      allow create: if isAuthenticated() && isValidExam(request.resource.data);
+      allow update: if isAuthenticated() && isValidExam(request.resource.data) && isDocOwner();
+      allow delete: if isAuthenticated() && isDocOwner();
+    }
+
+    // Default deny
+    match /{path=**} {
+      allow read, write: if false;
+    }
+  }
+}

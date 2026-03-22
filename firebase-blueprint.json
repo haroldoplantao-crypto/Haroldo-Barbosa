@@ -1,0 +1,136 @@
+{
+  "entities": {
+    "User": {
+      "title": "User Profile",
+      "description": "Stores user profile information.",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string", "description": "Unique user ID from Firebase Auth" },
+        "displayName": { "type": "string", "description": "User's full name" },
+        "email": { "type": "string", "description": "User's email address" },
+        "photoURL": { "type": "string", "description": "URL to user's profile picture" },
+        "phone": { "type": "string", "description": "Patient's phone number" },
+        "birthDate": { "type": "string", "format": "date", "description": "Patient's date of birth" },
+        "cpf": { "type": "string", "description": "Patient's CPF number" },
+        "gender": { "type": "string", "enum": ["Masculino", "Feminino", "Outro"], "description": "Patient's gender" },
+        "isRegistered": { "type": "boolean", "description": "Whether the patient has completed the full registration" },
+        "role": { "type": "string", "enum": ["patient", "admin"], "description": "User role in the system" },
+        "createdAt": { "type": "string", "format": "date-time", "description": "Account creation timestamp" }
+      },
+      "required": ["uid", "email", "role"]
+    },
+    "FibromyalgiaLog": {
+      "title": "Fibromyalgia Log",
+      "description": "Patient's daily monitoring log for fibromyalgia symptoms.",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string", "description": "Owner's user ID" },
+        "painLevel": { "type": "integer", "description": "Pain level from 0 to 10 (count of points)" },
+        "painPoints": { "type": "array", "items": { "type": "string" }, "description": "List of selected pain points" },
+        "fatigueLevel": { "type": "integer", "description": "Fatigue level from 0 to 10" },
+        "sleepQuality": { "type": "integer", "description": "Sleep quality from 0 to 10" },
+        "notes": { "type": "string", "description": "Additional observations" },
+        "timestamp": { "type": "string", "format": "date-time", "description": "Log entry timestamp" }
+      },
+      "required": ["uid", "painLevel", "timestamp"]
+    },
+    "Medication": {
+      "title": "Medication",
+      "description": "Stores information about a patient's current medication.",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string", "description": "Owner's user ID" },
+        "name": { "type": "string", "description": "Name of the medication" },
+        "dosage": { "type": "string", "description": "Dosage of the medication" },
+        "frequency": { "type": "string", "description": "Frequency of intake" },
+        "timestamp": { "type": "string", "format": "date-time", "description": "When the medication was added" }
+      },
+      "required": ["uid", "name", "timestamp"]
+    },
+    "AssessmentResult": {
+      "title": "Assessment Result",
+      "description": "Results from various fibromyalgia assessment tools.",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string", "description": "User ID" },
+        "toolId": { "type": "string", "description": "Identifier for the tool used (e.g., 'icaf', 'fiqr')" },
+        "toolName": { "type": "string", "description": "Name of the tool" },
+        "score": { "type": "number", "description": "Calculated score" },
+        "answers": { "type": "object", "description": "Raw answers provided" },
+        "interpretation": { "type": "string", "description": "Clinical interpretation of the score" },
+        "timestamp": { "type": "string", "format": "date-time", "description": "When the assessment was performed" }
+      },
+      "required": ["uid", "toolId", "score", "timestamp"]
+    },
+    "Consultation": {
+      "title": "Consultation",
+      "description": "Information about a patient's medical or therapeutic consultation.",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string", "description": "Owner's user ID" },
+        "specialty": { "type": "string", "description": "Medical or therapeutic specialty" },
+        "doctorName": { "type": "string", "description": "Name of the professional" },
+        "date": { "type": "string", "format": "date", "description": "Date of the consultation" },
+        "notes": { "type": "string", "description": "Consultation notes" },
+        "timestamp": { "type": "string", "format": "date-time", "description": "When the consultation was recorded" }
+      },
+      "required": ["uid", "specialty", "date", "timestamp"]
+    },
+    "PrescriptionRenewal": {
+      "title": "Prescription Renewal",
+      "description": "Tracking for medication prescription renewals.",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string", "description": "Owner's user ID" },
+        "renewed": { "type": "boolean", "description": "Whether the renewal was performed (Yes/No)" },
+        "date": { "type": "string", "format": "date", "description": "Date of the renewal" },
+        "timestamp": { "type": "string", "format": "date-time", "description": "When the record was created" }
+      },
+      "required": ["uid", "renewed", "date", "timestamp"]
+    },
+    "Exam": {
+      "title": "Medical Exam",
+      "description": "Tracking for medical exams performed or scheduled.",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string", "description": "Owner's user ID" },
+        "examName": { "type": "string", "description": "Name of the exam" },
+        "date": { "type": "string", "format": "date", "description": "Date of the exam" },
+        "status": { "type": "string", "enum": ["scheduled", "performed"], "description": "Exam status" },
+        "result": { "type": "string", "description": "Brief result or notes" },
+        "timestamp": { "type": "string", "format": "date-time", "description": "When the record was created" }
+      },
+      "required": ["uid", "examName", "date", "timestamp"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": "User",
+      "description": "User profile documents"
+    },
+    "/logs/{logId}": {
+      "schema": "FibromyalgiaLog",
+      "description": "Symptom monitoring logs"
+    },
+    "/assessments/{assessmentId}": {
+      "schema": "AssessmentResult",
+      "description": "Results of various clinical assessments"
+    },
+    "/medications/{medicationId}": {
+      "schema": "Medication",
+      "description": "Current medications for the user"
+    },
+    "/consultations/{consultationId}": {
+      "schema": "Consultation",
+      "description": "History of patient consultations"
+    },
+    "/prescriptions/{prescriptionId}": {
+      "schema": "PrescriptionRenewal",
+      "description": "Medication prescription renewal tracking"
+    },
+    "/exams/{examId}": {
+      "schema": "Exam",
+      "description": "Medical exam tracking"
+    }
+  }
+}
